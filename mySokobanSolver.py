@@ -247,20 +247,28 @@ def taboo_cells(warehouse):
 
         if(not space_in_line(cellA, cellB)):
             continue
+
         print("---------------------")
-        # print(f"{cellA} and {cellB}")
-        # print("space in line")
-        # print(space_in_line(cellA, cellB))
+        print(f"{cellA} and {cellB}")
+        print("space in line")
+        print(space_in_line(cellA, cellB))
+        not_taboo_blocks = False
         for space in space_in_line(cellA, cellB):
             if(not(space in floor_area and has_any_neighbour(space, warehouse.walls))):
-                continue
+                not_taboo_blocks = True
+                print("not taboo")
+                break   
 
+        if not_taboo_blocks:
+            continue
+
+        print("taboo")
         for space in space_in_line(cellA, cellB):
             rule_2.add(space)    
             
     for (x,y) in warehouse.walls:
         vis[y][x] = "#"
-    for (x,y) in (rule_2):
+    for (x,y) in rule_1.union(rule_2):
         vis[y][x] = "X"
 
     # print(get_floor_area_corners(floor_area))
