@@ -179,9 +179,6 @@ def is_corner(cell, allCells):
            or is_top_right_corner(cell, allCells) \
            or is_top_left_corner(cell, allCells) 
 
-# def get_floor_area_corners(floor_cells):
-#     return {cell for cell in floor_cells if is_corner(cell, floor_cells)}
-
 get_floor_area_corners = lambda floor_cells : {cell for cell in floor_cells if is_corner(cell, floor_cells)}
 
 are_inline_vert = lambda cellA, cellB : cellA[0] == cellB[0]
@@ -194,13 +191,13 @@ def space_in_line(cellA, cellB):
         y = cellA[1]
         x_start = min(cellA[0], cellB[0]) + 1
         x_end = max(cellA[0], cellB[0])
-        if(x_start < x_end and x_start > 0):
+        if(x_start < x_end):
             return {(x, y) for x in range(x_start, x_end)}
     elif are_inline_vert(cellA, cellB):
         x = cellA[0]
         y_start = min(cellA[1], cellB[1]) + 1
         y_end = max(cellA[1], cellB[1])
-        if(y_start < y_end and y_start > 0):
+        if(y_start < y_end):
             return {(x, y) for y in range(y_start, y_end)}
 
 
@@ -231,47 +228,41 @@ def taboo_cells(warehouse):
     '''
     floor_area = get_floor_cells(Floor(warehouse))
     rule_1 = {cell for cell in get_floor_area_corners(floor_area) if cell not in warehouse.targets}
-    # Prepare results
-    X,Y = zip(*warehouse.walls) 
-    x_size, y_size = 1+max(X), 1+max(Y)
-    
-    vis = [[" "] * x_size for y in range(y_size)]
-
     
     rule_2 = set()
     for combination in itertools.combinations(rule_1, 2):
         cellA = combination[0]
         cellB = combination[1]
+
         if not are_in_line(cellA, cellB):
             continue
 
         if(not space_in_line(cellA, cellB)):
             continue
 
-        print("---------------------")
-        print(f"{cellA} and {cellB}")
-        print("space in line")
-        print(space_in_line(cellA, cellB))
         not_taboo_blocks = False
         for space in space_in_line(cellA, cellB):
-            if(not(space in floor_area and has_any_neighbour(space, warehouse.walls))):
+            if(space in warehouse.targets) or not(space in floor_area and has_any_neighbour(space, warehouse.walls)):
                 not_taboo_blocks = True
-                print("not taboo")
                 break   
 
         if not_taboo_blocks:
             continue
 
-        print("taboo")
         for space in space_in_line(cellA, cellB):
             rule_2.add(space)    
             
+
+    # Prepare results
+    X,Y = zip(*warehouse.walls) 
+    x_size, y_size = 1+max(X), 1+max(Y)
+    
+    vis = [[" "] * x_size for y in range(y_size)]
     for (x,y) in warehouse.walls:
         vis[y][x] = "#"
     for (x,y) in rule_1.union(rule_2):
         vis[y][x] = "X"
 
-    # print(get_floor_area_corners(floor_area))
     return "\n".join(["".join(line) for line in vis])
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -312,6 +303,11 @@ class SokobanPuzzle(search.Problem):
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
+move_up = lambda coords : (coords[0], coords[1] - 1)
+move_down = lambda coords : (coords[0], coords[1] + 1)
+move_right = lambda coords : (coords[0] + 1, coords[1])
+move_left = lambda coords : (coords[0] - 1, coords[1])
+
 def check_elem_action_seq(warehouse, action_seq):
     '''
     
@@ -336,9 +332,54 @@ def check_elem_action_seq(warehouse, action_seq):
                string returned by the method  Warehouse.__str__()
     '''
     
-    ##         "INSERT YOUR CODE HERE"
+    current_warehouse = sokoban.Warehouse.copy(warehouse)
+
+    for action in action_seq:
+
+        worker_coords = current_warehouse.worker
+        floor_area = get_floor_cells(Floor(current_warehouse))
+        next_worker_coords = worker_coords
+
+        if action == 'Up':
+            next_worker_coords = move_up(worker_coords)
+        if action == 'Down':
+            next_worker_coords = move_down(worker_coords)
+        if action == 'Left':
+            next_worker_coords = move_left(worker_coords)
+        if action == 'Right':
+            next_worker_coords = move_right(worker_coords)
+
+        if next_worker_coords not in floor_area:
+            return "Impossible"
+        
+        boxes_coords = current_warehouse.boxes
+
+        if next_worker_coords in boxes_coords:
+            print(next_worker_coords)
+            idx = boxes_coords.index(next_worker_coords)
+            if action == 'Up':
+                boxes_coords[idx] = move_up(boxes_coords[idx])
+            if action == 'Down':
+                boxes_coords[idx] = move_down(boxes_coords[idx])
+            if action == 'Left':
+                boxes_coords[idx] = move_left(boxes_coords[idx])
+            if action == 'Right':
+                boxes_coords[idx] = move_right(boxes_coords[idx])
+            
+            new_boxes_coords_set = set(boxes_coords)
+            
+            if len(new_boxes_coords_set) != len(boxes_coords):
+                return "Impossible"
+            
+            if len(new_boxes_coords_set.union(floor_area)) != len(boxes_coords):
+                return "Impossible"
+
+        print(next_worker_coords)
+        # print(type(next_worker_coords))
+        current_warehouse = current_warehouse.copy(worker = next_worker_coords, boxes = boxes_coords)
     
-    raise NotImplementedError()
+    return str(current_warehouse)
+
 
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -371,15 +412,13 @@ def solve_weighted_sokoban(warehouse):
 
 if __name__ == "__main__":
     wh = sokoban.Warehouse()
-    wh.load_warehouse("./warehouses/warehouse_03.txt")
+    wh.load_warehouse("./warehouses/warehouse_11.txt")
     
     print(wh)
-    # print("\n")
+    print("\n")
     print(taboo_cells(wh))
-    # for i in space_in_line((1, 2), (1, 10)):
-    #     if(i):
-    #         print(type(i))
-    #         print(i)
+    print("\n")
+    print(check_elem_action_seq(wh, ["Down","Up", "Up", "Right"]))
 
 
 
