@@ -381,9 +381,6 @@ class SokobanPuzzle(search.Problem):
         
         """
         L = []
-        print(state)
-        print(state[0])
-        print([pair for pair in state if state.index(pair) > 0])
         self.warehouse = self.warehouse.copy(worker=state[0], boxes= [pair for pair in state if state.index(pair) > 0])
 
         if str(self.warehouse) != str(warehouse_result(self.warehouse, "Up", self.taboo)):
@@ -403,8 +400,6 @@ class SokobanPuzzle(search.Problem):
         self.actions(state)."""
         assert action in self.actions(state)
         self.warehouse = warehouse_result(self.warehouse, action, self.taboo)
-        print(self.warehouse)
-        print("\n")
         self.box_weight_map = dict(zip(self.warehouse.boxes, self.warehouse.weights))
         
         return (self.warehouse.worker,) + tuple(self.warehouse.boxes)
@@ -469,7 +464,6 @@ class SokobanPuzzle(search.Problem):
             counter_2 = itertools.count(0)
             perm_h = sum([get_manhattan_distance(boxes[next(counter)], targets[j]) + (self.box_weight_map[boxes[next(counter_2)]]) for j in perm]) 
             boxes_term = min(boxes_term, perm_h)
-        print(worker_term + boxes_term)
         return worker_term + boxes_term
 
     def h3(self, node):
@@ -530,46 +524,83 @@ def check_elem_action_seq(warehouse, action_seq):
     # current_warehouse = (warehouse)
 
     for action in action_seq:
+        current_state =  (current_warehouse.worker,) + tuple(current_warehouse.boxes)
+        sp = SokobanPuzzle(current_warehouse)
 
-        worker_coords = current_warehouse.worker
-        next_worker_coords = worker_coords
-
-        if action == 'Up':
-            next_worker_coords = move_up(worker_coords)
-        if action == 'Down':
-            next_worker_coords = move_down(worker_coords)
-        if action == 'Left':
-            next_worker_coords = move_left(worker_coords)
-        if action == 'Right':
-            next_worker_coords = move_right(worker_coords)
-
-        if next_worker_coords in warehouse.walls:
+        if action not in sp.actions(current_state):
             return "Impossible"
+
+        current_warehouse = warehouse_result(current_warehouse, action, sp.taboo)
         
-        boxes_coords = list(current_warehouse.boxes)
-
-        if next_worker_coords in boxes_coords:
-            idx = boxes_coords.index(next_worker_coords)
-            if action == 'Up':
-                boxes_coords[idx] = move_up(boxes_coords[idx])
-            if action == 'Down':
-                boxes_coords[idx] = move_down(boxes_coords[idx])
-            if action == 'Left':
-                boxes_coords[idx] = move_left(boxes_coords[idx])
-            if action == 'Right':
-                boxes_coords[idx] = move_right(boxes_coords[idx])
-            
-            if boxes_coords[idx] in warehouse.walls:
-                return "Impossible"
-            
-            new_boxes_coords_set = set(boxes_coords)
-            
-            if len(new_boxes_coords_set) != len(boxes_coords):
-                return "Impossible"
-
-        current_warehouse = current_warehouse.copy(worker = next_worker_coords, boxes = tuple(boxes_coords))
-    
     return str(current_warehouse)
+# def check_elem_action_seq(warehouse, action_seq):
+#     '''
+    
+#     Determine if the sequence of actions listed in 'action_seq' is legal or not.
+    
+#     Important notes:
+#       - a legal sequence of actions does not necessarily solve the puzzle.
+#       - an action is legal even if it pushes a box onto a taboo cell.
+        
+#     @param warehouse: a valid Warehouse object
+
+#     @param action_seq: a sequence of legal actions.
+#            For example, ['Left', 'Down', Down','Right', 'Up', 'Down']
+           
+#     @return
+#         The string 'Impossible', if one of the action was not valid.
+#            For example, if the agent tries to push two boxes at the same time,
+#                         or push a box into a wall.
+#         Otherwise, if all actions were successful, return                 
+#                A string representing the state of the puzzle after applying
+#                the sequence of actions.  This must be the same string as the
+#                string returned by the method  Warehouse.__str__()
+#     '''
+    
+#     current_warehouse = sokoban.Warehouse.copy(warehouse)
+#     # current_warehouse = (warehouse)
+
+#     for action in action_seq:
+
+#         worker_coords = current_warehouse.worker
+#         next_worker_coords = worker_coords
+
+#         if action == 'Up':
+#             next_worker_coords = move_up(worker_coords)
+#         if action == 'Down':
+#             next_worker_coords = move_down(worker_coords)
+#         if action == 'Left':
+#             next_worker_coords = move_left(worker_coords)
+#         if action == 'Right':
+#             next_worker_coords = move_right(worker_coords)
+
+#         if next_worker_coords in warehouse.walls:
+#             return "Impossible"
+        
+#         boxes_coords = list(current_warehouse.boxes)
+
+#         if next_worker_coords in boxes_coords:
+#             idx = boxes_coords.index(next_worker_coords)
+#             if action == 'Up':
+#                 boxes_coords[idx] = move_up(boxes_coords[idx])
+#             if action == 'Down':
+#                 boxes_coords[idx] = move_down(boxes_coords[idx])
+#             if action == 'Left':
+#                 boxes_coords[idx] = move_left(boxes_coords[idx])
+#             if action == 'Right':
+#                 boxes_coords[idx] = move_right(boxes_coords[idx])
+            
+#             if boxes_coords[idx] in warehouse.walls:
+#                 return "Impossible"
+            
+#             new_boxes_coords_set = set(boxes_coords)
+            
+#             if len(new_boxes_coords_set) != len(boxes_coords):
+#                 return "Impossible"
+
+#         current_warehouse = current_warehouse.copy(worker = next_worker_coords, boxes = tuple(boxes_coords))
+    
+#     return str(current_warehouse)
 
 
 
