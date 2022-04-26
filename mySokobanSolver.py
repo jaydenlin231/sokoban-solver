@@ -381,7 +381,9 @@ class SokobanPuzzle(search.Problem):
         
         """
         L = []
-        self.warehouse = self.warehouse.copy(worker=state[0], boxes= list(state[1]))
+        # self.warehouse = self.warehouse.copy(worker=state[0], boxes= list(state[1]))
+        self.warehouse.worker = state[0]
+        self.warehouse.boxes = list(state[1])
 
         if str(self.warehouse) != str(warehouse_result(self.warehouse, "Up", self.taboo)):
             L.append("Up")
