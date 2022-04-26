@@ -30,6 +30,7 @@ Last modified by 2022-03-27  by f.maire@qut.edu.au
 # the files provided (search.py and sokoban.py) as your code will be tested 
 # with these files
 import itertools
+import time
 import search 
 import sokoban
 
@@ -283,7 +284,7 @@ def taboo_cells(warehouse):
     vis = [[" "] * x_size for y in range(y_size)]
     for (x,y) in warehouse.walls:
         vis[y][x] = "#"
-    for (x,y) in rule_1.union(rule_2):
+    for (x,y) in rule_1 | rule_2:
         vis[y][x] = "X"
 
     return "\n".join(["".join(line) for line in vis])
@@ -340,7 +341,7 @@ def taboo_cells_coords(warehouse):
         for space in space_in_line(cellA, cellB):
             rule_2.add(space)    
             
-    return rule_1.union(rule_2)
+    return rule_1 | rule_2
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 class SokobanPuzzle(search.Problem):
@@ -367,7 +368,8 @@ class SokobanPuzzle(search.Problem):
 
     
     def __init__(self, warehouse):
-        self.warehouse = sokoban.Warehouse.copy(warehouse)
+        # self.warehouse = sokoban.Warehouse.copy(warehouse)
+        self.warehouse = warehouse
         self.initial = (warehouse.worker, tuple(warehouse.boxes))
         self.box_weight_map = dict(zip(warehouse.boxes, warehouse.weights))
         self.taboo = taboo_cells_coords(warehouse)
@@ -398,8 +400,8 @@ class SokobanPuzzle(search.Problem):
         self.actions(state)."""
         assert action in self.actions(state)
         self.warehouse = warehouse_result(self.warehouse, action, self.taboo)
-        # print(self.warehouse)
-        # print("\n")
+        print(self.warehouse)
+        print("\n")
         self.box_weight_map = dict(zip(self.warehouse.boxes, self.warehouse.weights))
         
         return (self.warehouse.worker, tuple(self. warehouse.boxes))
@@ -408,9 +410,7 @@ class SokobanPuzzle(search.Problem):
         """Return True if the state is a goal. The default method compares the
         state to self.goal, as specified in the constructor. Override this
         method if checking against a single self.goal is not enough."""
-        # print(state[1])
-        # print(tuple(self.warehouse.targets))
-        return len(set(state[1]).intersection(set((self.warehouse.targets)))) == len(state[1])
+        return set(state[1]) == set((self.warehouse.targets))
 
     def path_cost(self, c, state1, action, state2):
         """Return the cost of a solution path that arrives at state2 from
@@ -429,23 +429,25 @@ class SokobanPuzzle(search.Problem):
         # print(state1_boxes)
         # print(state2_boxes)
         # print('\n')
-        if(state1_worker != state2_worker):
-            c += 1
+        if(state1_worker == state2_worker):
+            return c
 
+        c += 1
         moved_box = set(state2_boxes) - set(state1_boxes)
-        # print(*moved_box)
         
-        if len(moved_box) > 0:
-            # moved_box = set(state2_boxes) - set(state1_boxes)
-            search_key = tuple(moved_box)
-            moved_box_weight = self.box_weight_map[search_key[0]]
-            # print(moved_box_weight)
-            c += moved_box_weight
+        if len(moved_box) <= 0:
+            return c
+
+        # moved_box = set(state2_boxes) - set(state1_boxes)
+        search_key = tuple(moved_box)
+        moved_box_weight = self.box_weight_map[search_key[0]]
+        c += moved_box_weight
         
         return c
 
     def h(self, node):
-        warehouse = self.warehouse.copy()
+        # warehouse = self.warehouse.copy()
+        warehouse = self.warehouse
         # h_sum = 0
         worker, boxes, targets = warehouse.worker, warehouse.boxes, warehouse.targets
         worker_term = get_min_manhattan_distance(worker, boxes)
@@ -454,23 +456,42 @@ class SokobanPuzzle(search.Problem):
         return boxes_term + worker_term
     
     def h2(self, node):
-        warehouse = self.warehouse.copy()
-        # h_sum = 0
+        # warehouse = self.warehouse.copy()
+        warehouse = self.warehouse
         worker, boxes, targets, weights = warehouse.worker, warehouse.boxes, warehouse.targets, warehouse.weights
         worker_term = get_min_manhattan_distance(worker, boxes)
         boxes_term = 100000000
         for perm in itertools.permutations([i for i in range(len(boxes))]):
-            perm_h = sum([get_manhattan_distance(boxes[j], targets[j]) for j in perm]) 
+            counter = itertools.count(0)
+            counter_2 = itertools.count(0)
+            perm_h = sum([get_manhattan_distance(boxes[next(counter)], targets[j]) + (self.box_weight_map[boxes[next(counter_2)]]) for j in perm]) 
             boxes_term = min(boxes_term, perm_h)
+        print(worker_term + boxes_term)
+        return worker_term + boxes_term
 
+    def h3(self, node):
+        # warehouse = self.warehouse.copy()
+        warehouse = self.warehouse
+        worker, boxes, targets, weights = warehouse.worker, warehouse.boxes, warehouse.targets, warehouse.weights
+        worker_term = get_min_manhattan_distance(worker, boxes)
+        boxes_term = 100000000
+        for perm in itertools.permutations([i for i in range(len(boxes))]):
+            j = 0
+            perm_h = 0
+            for k in perm:
+                box_h = get_manhattan_distance(boxes[j], targets[k])
 
-        # boxes_term = sum([get_min_manhattan_distance(box, targets) for box in boxes])
+                weight = self.box_weight_map[boxes[j]] 
+                
+                if weight == 0:
+                    box_h *= 1
+                else:
+                    box_h *= (weight * 0.1)
+                
+                perm_h += box_h
+            boxes_term = min(boxes_term, perm_h)
         return worker_term + boxes_term
         
-# get_min_manhattan_distance = lambda cell, all_cells : min([get_manhattan_distance(cell, another_cell)for another_cell in all_cells])
-
-# list(itertools.product(a, b))
-
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
 move_up = lambda coords : (coords[0], coords[1] - 1)
@@ -503,7 +524,7 @@ def check_elem_action_seq(warehouse, action_seq):
     '''
     
     current_warehouse = sokoban.Warehouse.copy(warehouse)
-    # floor_area = get_floor_cells(Floor(current_warehouse))
+    # current_warehouse = (warehouse)
 
     for action in action_seq:
 
@@ -574,10 +595,10 @@ def warehouse_result(warehouse, action, taboo):
                string returned by the method  Warehouse.__str__()
     '''
     
-    current_warehouse = sokoban.Warehouse.copy(warehouse)
+    # current_warehouse = sokoban.Warehouse.copy(warehouse)
+    current_warehouse = warehouse
 
     worker_coords = current_warehouse.worker
-    # floor_area = get_floor_cells(Floor(current_warehouse))
     next_worker_coords = worker_coords
     taboo_coords = taboo
 
@@ -650,15 +671,12 @@ def solve_weighted_sokoban(warehouse):
 
     # puzzleSolution = search.breadth_first_graph_search(a_sokoban_puzzle)
     # puzzleSolution = search.greedy_best_first_graph_search(a_sokoban_puzzle, a_sokoban_puzzle.h2)
-    puzzleSolution = search.astar_graph_search(a_sokoban_puzzle, a_sokoban_puzzle.h2)
-    # puzzleSolution = search.astar_graph_search(a_sokoban_puzzle, a_sokoban_puzzle.h)
-    # puzzleSolution = search.astar_tree_search(a_sokoban_puzzle, a_sokoban_puzzle.h2)
+    # puzzleSolution = search.astar_graph_search(a_sokoban_puzzle, a_sokoban_puzzle.h2)
+    puzzleSolution = search.astar_graph_search(a_sokoban_puzzle, a_sokoban_puzzle.h3)
+    # puzzleSolution = search.astar_tree_search(a_sokoban_puzzle, a_sokoban_puzzle.h)
     
     goal_state = (warehouse.worker, tuple(warehouse.boxes))
 
-    # print(puzzleSolution.path_cost)
-    # print(trace_actions(puzzleSolution))
-    # print(check_elem_action_seq(warehouse, trace_actions(puzzleSolution)) == "Impossible")
     if(a_sokoban_puzzle.goal_test(goal_state)):
         return []
     elif(puzzleSolution is None or check_elem_action_seq(warehouse, trace_actions(puzzleSolution)) == "Impossible"):
@@ -672,23 +690,17 @@ def trace_actions(goal_node):
     
 
 if __name__ == "__main__":
-    wh = sokoban.Warehouse()
-    wh.load_warehouse("./warehouses/warehouse_09.txt")
-    print(taboo_cells(wh))
-    # # print("\n")
-    print(wh)
-    sp = SokobanPuzzle(wh)
-    print(sp.h(None))
-    print("\n")
-    print(sp.h2(None))
-    print("\n")
-    # print(sp.result(sp.initial, "Right"))
-    # # print(check_elem_action_seq(wh, ["Down", "Left", "Up", "Down","Right", "Right"]))
-    # for action in  ["Right"]:
-    #     wh = warehouse_result(wh, action) #, "Down", "Right", "Right", "Right"])
-    
-    # print((wh.worker, tuple(wh.boxes)))
-    print(solve_weighted_sokoban(wh))
+    warehouse = sokoban.Warehouse()
+    warehouse.load_warehouse("./warehouses/warehouse_81.txt")
+    print('\nStarting to think...\n')
+    t0 = time.time()
+    solution, total_cost = solve_weighted_sokoban(warehouse)
+    t1 = time.time()
+    print (f'\nAnalysis took {t1-t0:.6f} seconds\n')
+    if solution == 'impossible':
+        print('\nNo solution found!\n')
+    else:
+        print(f"\nSolution found with a cost of {total_cost} \n", solution, '\n')
 
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
