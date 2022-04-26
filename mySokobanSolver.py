@@ -173,11 +173,26 @@ def is_top_right_corner(cell, allCells):
            and not has_right_neighbour(cell, allCells) \
            and not has_up_neighbour(cell, allCells)
 
+def is_caved_corner(cell, allCells):
+    neighbour_count = 0
+    if(has_down_neighbour(cell, allCells)):
+        neighbour_count += 1
+    if(has_left_neighbour(cell, allCells)):
+        neighbour_count += 1
+    if(has_up_neighbour(cell, allCells)):
+        neighbour_count += 1
+    if(has_right_neighbour(cell, allCells)):
+        neighbour_count += 1
+    
+    return neighbour_count == 1
+    
+
 def is_corner(cell, allCells):
     return is_bot_left_corner(cell, allCells) \
            or is_bot_right_corner(cell, allCells) \
            or is_top_right_corner(cell, allCells) \
-           or is_top_left_corner(cell, allCells) 
+           or is_top_left_corner(cell, allCells) \
+           or is_caved_corner(cell, allCells) 
 
 get_floor_area_corners = lambda floor_cells : {cell for cell in floor_cells if is_corner(cell, floor_cells)}
 
@@ -200,8 +215,81 @@ def space_in_line(cellA, cellB):
         if(y_start < y_end):
             return {(x, y) for y in range(y_start, y_end)}
 
+get_distance = lambda a, b : abs(a - b)
+
+get_manhattan_distance = lambda cellA, cellB: get_distance(cellA[0], cellB[0]) + get_distance(cellA[1], cellB[1]) 
+
+# [node.action for node in path if node.action]
+
+get_min_manhattan_distance = lambda cell, all_cells : min([get_manhattan_distance(cell, another_cell)for another_cell in all_cells])
 
 def taboo_cells(warehouse):
+    '''  
+    Identify the taboo cells of a warehouse. A "taboo cell" is by definition
+    a cell inside a warehouse such that whenever a box get pushed on such 
+    a cell then the puzzle becomes unsolvable. 
+    
+    Cells outside the warehouse are not taboo. It is a fail to tag an 
+    outside cell as taboo.
+    
+    When determining the taboo cells, you must ignore all the existing boxes, 
+    only consider the walls and the target  cells.  
+    Use only the following rules to determine the taboo cells;
+     Rule 1: if a cell is a corner and not a target, then it is a taboo cell.
+     Rule 2: all the cells between two corners along a wall are taboo if none of 
+             these cells is a target.
+    
+    @param warehouse: 
+        a Warehouse object with the worker inside the warehouse
+
+    @return
+       A string representing the warehouse with only the wall cells marked with 
+       a '#' and the taboo cells marked with a 'X'.  
+       The returned string should NOT have marks for the worker, the targets,
+       and the boxes.  
+    '''
+    floor_area = get_floor_cells(Floor(warehouse))
+    # print(floor_area)
+    rule_1 = {cell for cell in get_floor_area_corners(floor_area) if cell not in warehouse.targets}
+    
+    rule_2 = set()
+    for combination in itertools.combinations(rule_1, 2):
+        cellA = combination[0]
+        cellB = combination[1]
+
+        if not are_in_line(cellA, cellB):
+            continue
+
+        if(not space_in_line(cellA, cellB)):
+            continue
+
+        not_taboo_blocks = False
+        for space in space_in_line(cellA, cellB):
+            if(space in warehouse.targets) or not(space in floor_area and has_any_neighbour(space, warehouse.walls)):
+                not_taboo_blocks = True
+                break   
+
+        if not_taboo_blocks:
+            continue
+
+        for space in space_in_line(cellA, cellB):
+            rule_2.add(space)    
+            
+
+    # Prepare results
+    X,Y = zip(*warehouse.walls) 
+    x_size, y_size = 1+max(X), 1+max(Y)
+    
+    vis = [[" "] * x_size for y in range(y_size)]
+    for (x,y) in warehouse.walls:
+        vis[y][x] = "#"
+    for (x,y) in rule_1.union(rule_2):
+        vis[y][x] = "X"
+
+    return "\n".join(["".join(line) for line in vis])
+
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+def taboo_cells_coords(warehouse):
     '''  
     Identify the taboo cells of a warehouse. A "taboo cell" is by definition
     a cell inside a warehouse such that whenever a box get pushed on such 
@@ -252,22 +340,9 @@ def taboo_cells(warehouse):
         for space in space_in_line(cellA, cellB):
             rule_2.add(space)    
             
-
-    # Prepare results
-    X,Y = zip(*warehouse.walls) 
-    x_size, y_size = 1+max(X), 1+max(Y)
-    
-    vis = [[" "] * x_size for y in range(y_size)]
-    for (x,y) in warehouse.walls:
-        vis[y][x] = "#"
-    for (x,y) in rule_1.union(rule_2):
-        vis[y][x] = "X"
-
-    return "\n".join(["".join(line) for line in vis])
+    return rule_1.union(rule_2)
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-
-
 class SokobanPuzzle(search.Problem):
     '''
     An instance of the class 'SokobanPuzzle' represents a Sokoban puzzle.
@@ -292,14 +367,108 @@ class SokobanPuzzle(search.Problem):
 
     
     def __init__(self, warehouse):
-        raise NotImplementedError()
+        self.warehouse = sokoban.Warehouse.copy(warehouse)
+        self.initial = (warehouse.worker, tuple(warehouse.boxes))
+        self.box_weight_map = dict(zip(warehouse.boxes, warehouse.weights))
 
+        # self.weigh_map = {}
     def actions(self, state):
         """
         Return the list of actions that can be executed in the given state.
         
         """
-        raise NotImplementedError
+        L = []
+        self.warehouse = self.warehouse.copy(worker=state[0], boxes= list(state[1]))
+
+        if str(self.warehouse) != str(warehouse_result(self.warehouse, "Up")):
+            L.append("Up")
+        if str(self.warehouse) != str(warehouse_result(self.warehouse, "Down")):
+            L.append("Down")
+        if str(self.warehouse) != str(warehouse_result(self.warehouse, "Left")):
+            L.append("Left")
+        if str(self.warehouse) != str(warehouse_result(self.warehouse, "Right")):
+            L.append("Right")
+        
+        return L
+
+    def result(self, state, action):
+        """Return the state that results from executing the given
+        action in the given state. The action must be one of
+        self.actions(state)."""
+        assert action in self.actions(state)
+        self.warehouse = warehouse_result(self.warehouse, action)
+        # print(self.warehouse)
+        # print("\n")
+        self.box_weight_map = dict(zip(self.warehouse.boxes, self.warehouse.weights))
+        
+        return (self.warehouse.worker, tuple(self. warehouse.boxes))
+
+    def goal_test(self, state):
+        """Return True if the state is a goal. The default method compares the
+        state to self.goal, as specified in the constructor. Override this
+        method if checking against a single self.goal is not enough."""
+        # print(state[1])
+        # print(tuple(self.warehouse.targets))
+        return len(set(state[1]).intersection(set((self.warehouse.targets)))) == len(state[1])
+
+    def path_cost(self, c, state1, action, state2):
+        """Return the cost of a solution path that arrives at state2 from
+        state1 via action, assuming cost c to get up to state1. If the problem
+        is such that the path doesn't matter, this function will only look at
+        state2.  If the path does matter, it will consider c and maybe state1
+        and action. The default method costs 1 for every step in the path."""
+        state1_worker, state1_boxes = state1
+        state2_worker, state2_boxes = state2
+        
+        # state1_boxes_tuple = tuple(state1_boxes)
+        # state2_boxes_tuple = tuple(state2_boxes)
+        # print(state1)
+        # print(state2)
+        # print('\n')
+        # print(state1_boxes)
+        # print(state2_boxes)
+        # print('\n')
+        if(state1_worker != state2_worker):
+            c += 1
+
+        moved_box = set(state2_boxes) - set(state1_boxes)
+        # print(*moved_box)
+        
+        if len(moved_box) > 0:
+            # moved_box = set(state2_boxes) - set(state1_boxes)
+            search_key = tuple(moved_box)
+            moved_box_weight = self.box_weight_map[search_key[0]]
+            # print(moved_box_weight)
+            c += moved_box_weight
+        
+        return c
+
+    def h(self, node):
+        warehouse = self.warehouse.copy()
+        # h_sum = 0
+        worker, boxes, targets = warehouse.worker, warehouse.boxes, warehouse.targets
+        worker_term = get_min_manhattan_distance(worker, boxes)
+
+        boxes_term = sum([get_min_manhattan_distance(box, targets) for box in boxes])
+        return boxes_term + worker_term
+    
+    def h2(self, node):
+        warehouse = self.warehouse.copy()
+        # h_sum = 0
+        worker, boxes, targets, weights = warehouse.worker, warehouse.boxes, warehouse.targets, warehouse.weights
+        worker_term = get_min_manhattan_distance(worker, boxes)
+        boxes_term = 100000000
+        for perm in itertools.permutations([i for i in range(len(boxes))]):
+            perm_h = sum([get_manhattan_distance(boxes[j], targets[j]) for j in perm]) 
+            boxes_term = min(boxes_term, perm_h)
+
+
+        # boxes_term = sum([get_min_manhattan_distance(box, targets) for box in boxes])
+        return worker_term + boxes_term
+        
+# get_min_manhattan_distance = lambda cell, all_cells : min([get_manhattan_distance(cell, another_cell)for another_cell in all_cells])
+
+# list(itertools.product(a, b))
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
@@ -333,11 +502,11 @@ def check_elem_action_seq(warehouse, action_seq):
     '''
     
     current_warehouse = sokoban.Warehouse.copy(warehouse)
+    # floor_area = get_floor_cells(Floor(current_warehouse))
 
     for action in action_seq:
 
         worker_coords = current_warehouse.worker
-        floor_area = get_floor_cells(Floor(current_warehouse))
         next_worker_coords = worker_coords
 
         if action == 'Up':
@@ -349,13 +518,12 @@ def check_elem_action_seq(warehouse, action_seq):
         if action == 'Right':
             next_worker_coords = move_right(worker_coords)
 
-        if next_worker_coords not in floor_area:
+        if next_worker_coords in warehouse.walls:
             return "Impossible"
         
-        boxes_coords = current_warehouse.boxes
+        boxes_coords = list(current_warehouse.boxes)
 
         if next_worker_coords in boxes_coords:
-            print(next_worker_coords)
             idx = boxes_coords.index(next_worker_coords)
             if action == 'Up':
                 boxes_coords[idx] = move_up(boxes_coords[idx])
@@ -366,20 +534,89 @@ def check_elem_action_seq(warehouse, action_seq):
             if action == 'Right':
                 boxes_coords[idx] = move_right(boxes_coords[idx])
             
+            if boxes_coords[idx] in warehouse.walls:
+                return "Impossible"
+            
             new_boxes_coords_set = set(boxes_coords)
             
             if len(new_boxes_coords_set) != len(boxes_coords):
                 return "Impossible"
-            
-            if len(new_boxes_coords_set.union(floor_area)) != len(boxes_coords):
-                return "Impossible"
 
-        print(next_worker_coords)
-        # print(type(next_worker_coords))
-        current_warehouse = current_warehouse.copy(worker = next_worker_coords, boxes = boxes_coords)
+        current_warehouse = current_warehouse.copy(worker = next_worker_coords, boxes = tuple(boxes_coords))
     
     return str(current_warehouse)
 
+
+
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+def warehouse_result(warehouse, action):
+    '''
+    
+    Determine if the sequence of actions listed in 'action_seq' is legal or not.
+    
+    Important notes:
+      - a legal sequence of actions does not necessarily solve the puzzle.
+      - an action is legal even if it pushes a box onto a taboo cell.
+        
+    @param warehouse: a valid Warehouse object
+
+    @param action_seq: a sequence of legal actions.
+           For example, ['Left', 'Down', Down','Right', 'Up', 'Down']
+           
+    @return
+        The string 'Impossible', if one of the action was not valid.
+           For example, if the agent tries to push two boxes at the same time,
+                        or push a box into a wall.
+        Otherwise, if all actions were successful, return                 
+               A string representing the state of the puzzle after applying
+               the sequence of actions.  This must be the same string as the
+               string returned by the method  Warehouse.__str__()
+    '''
+    
+    current_warehouse = sokoban.Warehouse.copy(warehouse)
+
+    worker_coords = current_warehouse.worker
+    # floor_area = get_floor_cells(Floor(current_warehouse))
+    next_worker_coords = worker_coords
+    taboo_coords = taboo_cells_coords(warehouse)
+
+    if action == 'Up':
+        next_worker_coords = move_up(worker_coords)
+    if action == 'Down':
+        next_worker_coords = move_down(worker_coords)
+    if action == 'Left':
+        next_worker_coords = move_left(worker_coords)
+    if action == 'Right':
+        next_worker_coords = move_right(worker_coords)
+
+    if next_worker_coords in current_warehouse.walls:
+        return warehouse
+    
+    boxes_coords = list(current_warehouse.boxes)
+
+    if next_worker_coords in boxes_coords:
+        idx = boxes_coords.index(next_worker_coords)
+        if action == 'Up':
+            boxes_coords[idx] = move_up(boxes_coords[idx])
+        if action == 'Down':
+            boxes_coords[idx] = move_down(boxes_coords[idx])
+        if action == 'Left':
+            boxes_coords[idx] = move_left(boxes_coords[idx])
+        if action == 'Right':
+            boxes_coords[idx] = move_right(boxes_coords[idx])
+        
+        if (boxes_coords[idx] in current_warehouse.walls) or (boxes_coords[idx] in taboo_coords):
+            return warehouse
+        
+        new_boxes_coords_set = set(boxes_coords)
+        
+        
+        if len(new_boxes_coords_set) != len(boxes_coords):
+            return warehouse
+
+    current_warehouse = current_warehouse.copy(worker = next_worker_coords, boxes = tuple(boxes_coords))
+
+    return current_warehouse
 
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -407,19 +644,50 @@ def solve_weighted_sokoban(warehouse):
             C is the total cost of the action sequence C
 
     '''
+
+    a_sokoban_puzzle = SokobanPuzzle(warehouse)
+
+    # puzzleSolution = search.breadth_first_graph_search(a_sokoban_puzzle)
+    # puzzleSolution = search.greedy_best_first_graph_search(a_sokoban_puzzle, a_sokoban_puzzle.h2)
+    puzzleSolution = search.astar_graph_search(a_sokoban_puzzle, a_sokoban_puzzle.h2)
+    # puzzleSolution = search.astar_graph_search(a_sokoban_puzzle, a_sokoban_puzzle.h)
+    # puzzleSolution = search.astar_tree_search(a_sokoban_puzzle, a_sokoban_puzzle.h2)
     
-    raise NotImplementedError()
+    goal_state = (warehouse.worker, tuple(warehouse.boxes))
+
+    # print(puzzleSolution.path_cost)
+    # print(trace_actions(puzzleSolution))
+    # print(check_elem_action_seq(warehouse, trace_actions(puzzleSolution)) == "Impossible")
+    if(a_sokoban_puzzle.goal_test(goal_state)):
+        return []
+    elif(puzzleSolution is None or check_elem_action_seq(warehouse, trace_actions(puzzleSolution)) == "Impossible"):
+        return ["impossible", None]
+    else:
+        return [trace_actions(puzzleSolution), puzzleSolution.path_cost]
+
+def trace_actions(goal_node):
+    path = goal_node.path()
+    return [node.action for node in path if node.action]
+    
 
 if __name__ == "__main__":
     wh = sokoban.Warehouse()
-    wh.load_warehouse("./warehouses/warehouse_11.txt")
-    
-    print(wh)
-    print("\n")
+    wh.load_warehouse("./warehouses/warehouse_09.txt")
     print(taboo_cells(wh))
+    # # print("\n")
+    print(wh)
+    sp = SokobanPuzzle(wh)
+    print(sp.h(None))
     print("\n")
-    print(check_elem_action_seq(wh, ["Down","Up", "Up", "Right"]))
-
+    print(sp.h2(None))
+    print("\n")
+    # print(sp.result(sp.initial, "Right"))
+    # # print(check_elem_action_seq(wh, ["Down", "Left", "Up", "Down","Right", "Right"]))
+    # for action in  ["Right"]:
+    #     wh = warehouse_result(wh, action) #, "Down", "Right", "Right", "Right"])
+    
+    # print((wh.worker, tuple(wh.boxes)))
+    print(solve_weighted_sokoban(wh))
 
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
