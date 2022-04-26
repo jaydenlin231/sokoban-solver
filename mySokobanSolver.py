@@ -30,8 +30,6 @@ Last modified by 2022-03-27  by f.maire@qut.edu.au
 # the files provided (search.py and sokoban.py) as your code will be tested 
 # with these files
 import itertools
-from operator import index
-from tabnanny import check
 import search 
 import sokoban
 
@@ -371,6 +369,8 @@ class SokobanPuzzle(search.Problem):
     def __init__(self, warehouse):
         self.warehouse = sokoban.Warehouse.copy(warehouse)
         self.initial = (warehouse.worker, tuple(warehouse.boxes))
+        self.box_weight_map = dict(zip(warehouse.boxes, warehouse.weights))
+
         # self.weigh_map = {}
     def actions(self, state):
         """
@@ -399,6 +399,8 @@ class SokobanPuzzle(search.Problem):
         self.warehouse = warehouse_result(self.warehouse, action)
         # print(self.warehouse)
         # print("\n")
+        self.box_weight_map = dict(zip(self.warehouse.boxes, self.warehouse.weights))
+        
         return (self.warehouse.worker, tuple(self. warehouse.boxes))
 
     def goal_test(self, state):
@@ -420,71 +422,26 @@ class SokobanPuzzle(search.Problem):
         
         # state1_boxes_tuple = tuple(state1_boxes)
         # state2_boxes_tuple = tuple(state2_boxes)
+        # print(state1)
+        # print(state2)
+        # print('\n')
         # print(state1_boxes)
         # print(state2_boxes)
+        # print('\n')
         if(state1_worker != state2_worker):
             c += 1
+
+        moved_box = set(state2_boxes) - set(state1_boxes)
+        # print(*moved_box)
         
-        if len(set(state1_boxes).intersection(set(state2_boxes))) > len(state2_boxes):
-            moved_box = set(state2_boxes) - set(state1_boxes)
-            idx = state2_boxes.index(*moved_box)
-            c += self.warehouse.weights[idx]
+        if len(moved_box) > 0:
+            # moved_box = set(state2_boxes) - set(state1_boxes)
+            search_key = tuple(moved_box)
+            moved_box_weight = self.box_weight_map[search_key[0]]
+            # print(moved_box_weight)
+            c += moved_box_weight
         
         return c
-    # def path_cost(self, c, state1, action, state2):
-    #     """Return the cost of a solution path that arrives at state2 from
-    #     state1 via action, assuming cost c to get up to state1. If the problem
-    #     is such that the path doesn't matter, this function will only look at
-    #     state2.  If the path does matter, it will consider c and maybe state1
-    #     and action. The default method costs 1 for every step in the path."""
-    #     current_warehouse = sokoban.Warehouse.copy(self.warehouse)
-    #     sum = 0
-    #     worker_coords = current_warehouse.worker
-    #     # floor_area = get_floor_cells(Floor(current_warehouse))
-    #     next_worker_coords = worker_coords
-    #     taboo_coords = taboo_cells_coords(current_warehouse)
-
-    #     if action == 'Up':
-    #         next_worker_coords = move_up(worker_coords)
-    #     if action == 'Down':
-    #         next_worker_coords = move_down(worker_coords)
-    #     if action == 'Left':
-    #         next_worker_coords = move_left(worker_coords)
-    #     if action == 'Right':
-    #         next_worker_coords = move_right(worker_coords)
-
-    #     if next_worker_coords in current_warehouse.walls:
-    #         return c
-        
-    #     sum += 1
-        
-    #     boxes_coords = list(current_warehouse.boxes)
-
-    #     if next_worker_coords in boxes_coords:
-    #         idx = boxes_coords.index(next_worker_coords)
-    #         if action == 'Up':
-    #             boxes_coords[idx] = move_up(boxes_coords[idx])
-    #         if action == 'Down':
-    #             boxes_coords[idx] = move_down(boxes_coords[idx])
-    #         if action == 'Left':
-    #             boxes_coords[idx] = move_left(boxes_coords[idx])
-    #         if action == 'Right':
-    #             boxes_coords[idx] = move_right(boxes_coords[idx])
-            
-    #         if (boxes_coords[idx] in current_warehouse.walls) or (boxes_coords[idx] in taboo_coords):
-    #             return c
-            
-    #         new_boxes_coords_set = set(boxes_coords)
-            
-            
-    #         if len(new_boxes_coords_set) != len(boxes_coords):
-    #             return c
-            
-    #         sum += self.warehouse.weights[idx]
-    #     print(c + sum)
-    #     # current_warehouse = current_warehouse.copy(worker = next_worker_coords, boxes = tuple(boxes_coords))
-
-    #     return c + sum
 
     def h(self, node):
         warehouse = self.warehouse.copy()
