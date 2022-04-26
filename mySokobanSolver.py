@@ -370,6 +370,7 @@ class SokobanPuzzle(search.Problem):
         self.warehouse = sokoban.Warehouse.copy(warehouse)
         self.initial = (warehouse.worker, tuple(warehouse.boxes))
         self.box_weight_map = dict(zip(warehouse.boxes, warehouse.weights))
+        self.taboo = taboo_cells_coords(warehouse)
 
         # self.weigh_map = {}
     def actions(self, state):
@@ -380,13 +381,13 @@ class SokobanPuzzle(search.Problem):
         L = []
         self.warehouse = self.warehouse.copy(worker=state[0], boxes= list(state[1]))
 
-        if str(self.warehouse) != str(warehouse_result(self.warehouse, "Up")):
+        if str(self.warehouse) != str(warehouse_result(self.warehouse, "Up", self.taboo)):
             L.append("Up")
-        if str(self.warehouse) != str(warehouse_result(self.warehouse, "Down")):
+        if str(self.warehouse) != str(warehouse_result(self.warehouse, "Down", self.taboo)):
             L.append("Down")
-        if str(self.warehouse) != str(warehouse_result(self.warehouse, "Left")):
+        if str(self.warehouse) != str(warehouse_result(self.warehouse, "Left", self.taboo)):
             L.append("Left")
-        if str(self.warehouse) != str(warehouse_result(self.warehouse, "Right")):
+        if str(self.warehouse) != str(warehouse_result(self.warehouse, "Right", self.taboo)):
             L.append("Right")
         
         return L
@@ -396,7 +397,7 @@ class SokobanPuzzle(search.Problem):
         action in the given state. The action must be one of
         self.actions(state)."""
         assert action in self.actions(state)
-        self.warehouse = warehouse_result(self.warehouse, action)
+        self.warehouse = warehouse_result(self.warehouse, action, self.taboo)
         # print(self.warehouse)
         # print("\n")
         self.box_weight_map = dict(zip(self.warehouse.boxes, self.warehouse.weights))
@@ -549,7 +550,7 @@ def check_elem_action_seq(warehouse, action_seq):
 
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-def warehouse_result(warehouse, action):
+def warehouse_result(warehouse, action, taboo):
     '''
     
     Determine if the sequence of actions listed in 'action_seq' is legal or not.
@@ -578,7 +579,7 @@ def warehouse_result(warehouse, action):
     worker_coords = current_warehouse.worker
     # floor_area = get_floor_cells(Floor(current_warehouse))
     next_worker_coords = worker_coords
-    taboo_coords = taboo_cells_coords(warehouse)
+    taboo_coords = taboo
 
     if action == 'Up':
         next_worker_coords = move_up(worker_coords)
