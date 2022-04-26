@@ -30,6 +30,7 @@ Last modified by 2022-03-27  by f.maire@qut.edu.au
 # the files provided (search.py and sokoban.py) as your code will be tested 
 # with these files
 import itertools
+from operator import index
 from tabnanny import check
 import search 
 import sokoban
@@ -174,11 +175,26 @@ def is_top_right_corner(cell, allCells):
            and not has_right_neighbour(cell, allCells) \
            and not has_up_neighbour(cell, allCells)
 
+def is_caved_corner(cell, allCells):
+    neighbour_count = 0
+    if(has_down_neighbour(cell, allCells)):
+        neighbour_count += 1
+    if(has_left_neighbour(cell, allCells)):
+        neighbour_count += 1
+    if(has_up_neighbour(cell, allCells)):
+        neighbour_count += 1
+    if(has_right_neighbour(cell, allCells)):
+        neighbour_count += 1
+    
+    return neighbour_count == 1
+    
+
 def is_corner(cell, allCells):
     return is_bot_left_corner(cell, allCells) \
            or is_bot_right_corner(cell, allCells) \
            or is_top_right_corner(cell, allCells) \
-           or is_top_left_corner(cell, allCells) 
+           or is_top_left_corner(cell, allCells) \
+           or is_caved_corner(cell, allCells) 
 
 get_floor_area_corners = lambda floor_cells : {cell for cell in floor_cells if is_corner(cell, floor_cells)}
 
@@ -201,6 +217,13 @@ def space_in_line(cellA, cellB):
         if(y_start < y_end):
             return {(x, y) for y in range(y_start, y_end)}
 
+get_distance = lambda a, b : abs(a - b)
+
+get_manhattan_distance = lambda cellA, cellB: get_distance(cellA[0], cellB[0]) + get_distance(cellA[1], cellB[1]) 
+
+# [node.action for node in path if node.action]
+
+get_min_manhattan_distance = lambda cell, all_cells : min([get_manhattan_distance(cell, another_cell)for another_cell in all_cells])
 
 def taboo_cells(warehouse):
     '''  
@@ -228,6 +251,7 @@ def taboo_cells(warehouse):
        and the boxes.  
     '''
     floor_area = get_floor_cells(Floor(warehouse))
+    # print(floor_area)
     rule_1 = {cell for cell in get_floor_area_corners(floor_area) if cell not in warehouse.targets}
     
     rule_2 = set()
@@ -347,7 +371,7 @@ class SokobanPuzzle(search.Problem):
     def __init__(self, warehouse):
         self.warehouse = sokoban.Warehouse.copy(warehouse)
         self.initial = (warehouse.worker, tuple(warehouse.boxes))
-
+        # self.weigh_map = {}
     def actions(self, state):
         """
         Return the list of actions that can be executed in the given state.
@@ -381,9 +405,9 @@ class SokobanPuzzle(search.Problem):
         """Return True if the state is a goal. The default method compares the
         state to self.goal, as specified in the constructor. Override this
         method if checking against a single self.goal is not enough."""
-        print(state[1])
-        print(self.warehouse.targets)
-        return state[1] == tuple(self.warehouse.targets)
+        # print(state[1])
+        # print(tuple(self.warehouse.targets))
+        return len(set(state[1]).intersection(set((self.warehouse.targets)))) == len(state[1])
 
     def path_cost(self, c, state1, action, state2):
         """Return the cost of a solution path that arrives at state2 from
@@ -391,8 +415,103 @@ class SokobanPuzzle(search.Problem):
         is such that the path doesn't matter, this function will only look at
         state2.  If the path does matter, it will consider c and maybe state1
         and action. The default method costs 1 for every step in the path."""
-        return c + 1
+        state1_worker, state1_boxes = state1
+        state2_worker, state2_boxes = state2
+        
+        # state1_boxes_tuple = tuple(state1_boxes)
+        # state2_boxes_tuple = tuple(state2_boxes)
+        # print(state1_boxes)
+        # print(state2_boxes)
+        if(state1_worker != state2_worker):
+            c += 1
+        
+        if len(set(state1_boxes).intersection(set(state2_boxes))) > len(state2_boxes):
+            moved_box = set(state2_boxes) - set(state1_boxes)
+            idx = state2_boxes.index(*moved_box)
+            c += self.warehouse.weights[idx]
+        
+        return c
+    # def path_cost(self, c, state1, action, state2):
+    #     """Return the cost of a solution path that arrives at state2 from
+    #     state1 via action, assuming cost c to get up to state1. If the problem
+    #     is such that the path doesn't matter, this function will only look at
+    #     state2.  If the path does matter, it will consider c and maybe state1
+    #     and action. The default method costs 1 for every step in the path."""
+    #     current_warehouse = sokoban.Warehouse.copy(self.warehouse)
+    #     sum = 0
+    #     worker_coords = current_warehouse.worker
+    #     # floor_area = get_floor_cells(Floor(current_warehouse))
+    #     next_worker_coords = worker_coords
+    #     taboo_coords = taboo_cells_coords(current_warehouse)
+
+    #     if action == 'Up':
+    #         next_worker_coords = move_up(worker_coords)
+    #     if action == 'Down':
+    #         next_worker_coords = move_down(worker_coords)
+    #     if action == 'Left':
+    #         next_worker_coords = move_left(worker_coords)
+    #     if action == 'Right':
+    #         next_worker_coords = move_right(worker_coords)
+
+    #     if next_worker_coords in current_warehouse.walls:
+    #         return c
+        
+    #     sum += 1
+        
+    #     boxes_coords = list(current_warehouse.boxes)
+
+    #     if next_worker_coords in boxes_coords:
+    #         idx = boxes_coords.index(next_worker_coords)
+    #         if action == 'Up':
+    #             boxes_coords[idx] = move_up(boxes_coords[idx])
+    #         if action == 'Down':
+    #             boxes_coords[idx] = move_down(boxes_coords[idx])
+    #         if action == 'Left':
+    #             boxes_coords[idx] = move_left(boxes_coords[idx])
+    #         if action == 'Right':
+    #             boxes_coords[idx] = move_right(boxes_coords[idx])
+            
+    #         if (boxes_coords[idx] in current_warehouse.walls) or (boxes_coords[idx] in taboo_coords):
+    #             return c
+            
+    #         new_boxes_coords_set = set(boxes_coords)
+            
+            
+    #         if len(new_boxes_coords_set) != len(boxes_coords):
+    #             return c
+            
+    #         sum += self.warehouse.weights[idx]
+    #     print(c + sum)
+    #     # current_warehouse = current_warehouse.copy(worker = next_worker_coords, boxes = tuple(boxes_coords))
+
+    #     return c + sum
+
+    def h(self, node):
+        warehouse = self.warehouse.copy()
+        # h_sum = 0
+        worker, boxes, targets = warehouse.worker, warehouse.boxes, warehouse.targets
+        worker_term = get_min_manhattan_distance(worker, boxes)
+
+        boxes_term = sum([get_min_manhattan_distance(box, targets) for box in boxes])
+        return boxes_term + worker_term
     
+    def h2(self, node):
+        warehouse = self.warehouse.copy()
+        # h_sum = 0
+        worker, boxes, targets, weights = warehouse.worker, warehouse.boxes, warehouse.targets, warehouse.weights
+        worker_term = get_min_manhattan_distance(worker, boxes)
+        boxes_term = 100000000
+        for perm in itertools.permutations([i for i in range(len(boxes))]):
+            perm_h = sum([get_manhattan_distance(boxes[j], targets[j]) for j in perm]) 
+            boxes_term = min(boxes_term, perm_h)
+
+
+        # boxes_term = sum([get_min_manhattan_distance(box, targets) for box in boxes])
+        return worker_term + boxes_term
+        
+# get_min_manhattan_distance = lambda cell, all_cells : min([get_manhattan_distance(cell, another_cell)for another_cell in all_cells])
+
+# list(itertools.product(a, b))
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
@@ -426,11 +545,11 @@ def check_elem_action_seq(warehouse, action_seq):
     '''
     
     current_warehouse = sokoban.Warehouse.copy(warehouse)
+    # floor_area = get_floor_cells(Floor(current_warehouse))
 
     for action in action_seq:
 
         worker_coords = current_warehouse.worker
-        floor_area = get_floor_cells(Floor(current_warehouse))
         next_worker_coords = worker_coords
 
         if action == 'Up':
@@ -442,7 +561,7 @@ def check_elem_action_seq(warehouse, action_seq):
         if action == 'Right':
             next_worker_coords = move_right(worker_coords)
 
-        if next_worker_coords not in floor_area:
+        if next_worker_coords in warehouse.walls:
             return "Impossible"
         
         boxes_coords = list(current_warehouse.boxes)
@@ -458,7 +577,7 @@ def check_elem_action_seq(warehouse, action_seq):
             if action == 'Right':
                 boxes_coords[idx] = move_right(boxes_coords[idx])
             
-            if boxes_coords[idx] not in floor_area:
+            if boxes_coords[idx] in warehouse.walls:
                 return "Impossible"
             
             new_boxes_coords_set = set(boxes_coords)
@@ -500,7 +619,7 @@ def warehouse_result(warehouse, action):
     current_warehouse = sokoban.Warehouse.copy(warehouse)
 
     worker_coords = current_warehouse.worker
-    floor_area = get_floor_cells(Floor(current_warehouse))
+    # floor_area = get_floor_cells(Floor(current_warehouse))
     next_worker_coords = worker_coords
     taboo_coords = taboo_cells_coords(warehouse)
 
@@ -513,7 +632,7 @@ def warehouse_result(warehouse, action):
     if action == 'Right':
         next_worker_coords = move_right(worker_coords)
 
-    if next_worker_coords not in floor_area:
+    if next_worker_coords in current_warehouse.walls:
         return warehouse
     
     boxes_coords = list(current_warehouse.boxes)
@@ -529,7 +648,7 @@ def warehouse_result(warehouse, action):
         if action == 'Right':
             boxes_coords[idx] = move_right(boxes_coords[idx])
         
-        if (boxes_coords[idx] not in floor_area) or (boxes_coords[idx] in taboo_coords):
+        if (boxes_coords[idx] in current_warehouse.walls) or (boxes_coords[idx] in taboo_coords):
             return warehouse
         
         new_boxes_coords_set = set(boxes_coords)
@@ -569,43 +688,42 @@ def solve_weighted_sokoban(warehouse):
 
     '''
 
-    sp = SokobanPuzzle(warehouse)
+    a_sokoban_puzzle = SokobanPuzzle(warehouse)
 
-    puzzleSolution = search.breadth_first_graph_search(sp)
+    # puzzleSolution = search.breadth_first_graph_search(a_sokoban_puzzle)
+    # puzzleSolution = search.greedy_best_first_graph_search(a_sokoban_puzzle, a_sokoban_puzzle.h2)
+    puzzleSolution = search.astar_graph_search(a_sokoban_puzzle, a_sokoban_puzzle.h2)
+    # puzzleSolution = search.astar_graph_search(a_sokoban_puzzle, a_sokoban_puzzle.h)
+    # puzzleSolution = search.astar_tree_search(a_sokoban_puzzle, a_sokoban_puzzle.h2)
     
-    if(sp.goal_test((warehouse.worker, tuple(warehouse.boxes)))):
+    goal_state = (warehouse.worker, tuple(warehouse.boxes))
+
+    # print(puzzleSolution.path_cost)
+    # print(trace_actions(puzzleSolution))
+    # print(check_elem_action_seq(warehouse, trace_actions(puzzleSolution)) == "Impossible")
+    if(a_sokoban_puzzle.goal_test(goal_state)):
         return []
-    elif(puzzleSolution is None or check_elem_action_seq(warehouse, find_action(puzzleSolution)) == "Impossible"):
-        return ["impossible", 100]
+    elif(puzzleSolution is None or check_elem_action_seq(warehouse, trace_actions(puzzleSolution)) == "Impossible"):
+        return ["impossible", None]
     else:
-        return [find_action(puzzleSolution), 100]
+        return [trace_actions(puzzleSolution), puzzleSolution.path_cost]
 
-def find_action(goal_node):
-    '''
-    Helper function to find the list of action from node list if the possible solution is
-    found to fix the Sokoban Puzzle
-    @param goal_node: the list of nodes has reached the goal test
-    
-    @return
-            the list of actions from every node 
-    '''
+def trace_actions(goal_node):
     path = goal_node.path()
-    step_move = []
-    for node in path:
-        step_move.append(node.action)
-    return step_move[1:]
+    return [node.action for node in path if node.action]
     
 
 if __name__ == "__main__":
     wh = sokoban.Warehouse()
     wh.load_warehouse("./warehouses/warehouse_09.txt")
-    
-    # print(wh)
-    # print("\n")
-    # # print(taboo_cells(wh))
+    print(taboo_cells(wh))
     # # print("\n")
-    # sp = SokobanPuzzle(wh)
-    # print(sp.actions(sp.initial))
+    print(wh)
+    sp = SokobanPuzzle(wh)
+    print(sp.h(None))
+    print("\n")
+    print(sp.h2(None))
+    print("\n")
     # print(sp.result(sp.initial, "Right"))
     # # print(check_elem_action_seq(wh, ["Down", "Left", "Up", "Down","Right", "Right"]))
     # for action in  ["Right"]:
