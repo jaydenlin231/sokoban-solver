@@ -370,7 +370,7 @@ class SokobanPuzzle(search.Problem):
     def __init__(self, warehouse):
         # self.warehouse = sokoban.Warehouse.copy(warehouse)
         self.warehouse = warehouse
-        self.initial = (warehouse.worker, tuple(warehouse.boxes))
+        self.initial = (warehouse.worker,)+ tuple(warehouse.boxes)
         self.box_weight_map = dict(zip(warehouse.boxes, warehouse.weights))
         self.taboo = taboo_cells_coords(warehouse)
 
@@ -381,7 +381,10 @@ class SokobanPuzzle(search.Problem):
         
         """
         L = []
-        self.warehouse = self.warehouse.copy(worker=state[0], boxes= list(state[1]))
+        print(state)
+        print(state[0])
+        print([pair for pair in state if state.index(pair) > 0])
+        self.warehouse = self.warehouse.copy(worker=state[0], boxes= [pair for pair in state if state.index(pair) > 0])
 
         if str(self.warehouse) != str(warehouse_result(self.warehouse, "Up", self.taboo)):
             L.append("Up")
@@ -404,13 +407,13 @@ class SokobanPuzzle(search.Problem):
         print("\n")
         self.box_weight_map = dict(zip(self.warehouse.boxes, self.warehouse.weights))
         
-        return (self.warehouse.worker, tuple(self. warehouse.boxes))
+        return (self.warehouse.worker,) + tuple(self.warehouse.boxes)
 
     def goal_test(self, state):
         """Return True if the state is a goal. The default method compares the
         state to self.goal, as specified in the constructor. Override this
         method if checking against a single self.goal is not enough."""
-        return set(state[1]) == set((self.warehouse.targets))
+        return set([pair for pair in state if state.index(pair) > 0]) == set((self.warehouse.targets))
 
     def path_cost(self, c, state1, action, state2):
         """Return the cost of a solution path that arrives at state2 from
@@ -418,8 +421,8 @@ class SokobanPuzzle(search.Problem):
         is such that the path doesn't matter, this function will only look at
         state2.  If the path does matter, it will consider c and maybe state1
         and action. The default method costs 1 for every step in the path."""
-        state1_worker, state1_boxes = state1
-        state2_worker, state2_boxes = state2
+        state1_worker, state1_boxes = state1[0], [pair for pair in state1 if state1.index(pair) > 0]
+        state2_worker, state2_boxes = state2[0], [pair for pair in state2 if state2.index(pair) > 0]
         
         # state1_boxes_tuple = tuple(state1_boxes)
         # state2_boxes_tuple = tuple(state2_boxes)
@@ -671,8 +674,8 @@ def solve_weighted_sokoban(warehouse):
 
     # puzzleSolution = search.breadth_first_graph_search(a_sokoban_puzzle)
     # puzzleSolution = search.greedy_best_first_graph_search(a_sokoban_puzzle, a_sokoban_puzzle.h2)
-    # puzzleSolution = search.astar_graph_search(a_sokoban_puzzle, a_sokoban_puzzle.h2)
-    puzzleSolution = search.astar_graph_search(a_sokoban_puzzle, a_sokoban_puzzle.h3)
+    puzzleSolution = search.astar_graph_search(a_sokoban_puzzle, a_sokoban_puzzle.h2)
+    # puzzleSolution = search.astar_graph_search(a_sokoban_puzzle, a_sokoban_puzzle.h3)
     # puzzleSolution = search.astar_tree_search(a_sokoban_puzzle, a_sokoban_puzzle.h)
     
     goal_state = (warehouse.worker, tuple(warehouse.boxes))
@@ -691,7 +694,7 @@ def trace_actions(goal_node):
 
 if __name__ == "__main__":
     warehouse = sokoban.Warehouse()
-    warehouse.load_warehouse("./warehouses/warehouse_81.txt")
+    warehouse.load_warehouse("./warehouses/warehouse_147.txt")
     print('\nStarting to think...\n')
     t0 = time.time()
     solution, total_cost = solve_weighted_sokoban(warehouse)
