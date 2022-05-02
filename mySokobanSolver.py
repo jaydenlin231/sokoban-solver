@@ -43,8 +43,8 @@ def my_team():
     of triplet of the form (student_number, first_name, last_name)
     
     '''
-#    return [ (1234567, 'Ada', 'Lovelace'), (1234568, 'Grace', 'Hopper'), (1234569, 'Eva', 'Tardos') ]
-    raise NotImplementedError()
+    return [ (10664599, 'Wei-Chung', 'Lin'), (10794565, 'Alexander', 'Kim')]
+    # raise NotImplementedError()
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
@@ -527,13 +527,10 @@ def check_elem_action_seq(warehouse, action_seq):
     current_warehouse = sokoban.Warehouse.copy(warehouse)
 
     for action in action_seq:
-        current_state =  (current_warehouse.worker, tuple(current_warehouse.boxes))
-        sp = SokobanPuzzle(current_warehouse)
-
-        if action not in sp.actions(current_state):
+        if str(current_warehouse) == str(warehouse_result(current_warehouse, action, [])):
             return "Impossible"
 
-        current_warehouse = warehouse_result(current_warehouse, action, sp.taboo)
+        current_warehouse = warehouse_result(current_warehouse, action, [])
         
     return str(current_warehouse)
     
@@ -707,11 +704,7 @@ def solve_weighted_sokoban(warehouse):
 
     a_sokoban_puzzle = SokobanPuzzle(warehouse)
 
-    # puzzleSolution = search.breadth_first_graph_search(a_sokoban_puzzle)
-    # puzzleSolution = search.greedy_best_first_graph_search(a_sokoban_puzzle, a_sokoban_puzzle.h2)
     puzzleSolution = search.astar_graph_search(a_sokoban_puzzle, a_sokoban_puzzle.h2)
-    # puzzleSolution = search.astar_graph_search(a_sokoban_puzzle, a_sokoban_puzzle.h3)
-    # puzzleSolution = search.astar_tree_search(a_sokoban_puzzle, a_sokoban_puzzle.h)
     
     goal_state = (warehouse.worker, tuple(warehouse.boxes))
 
